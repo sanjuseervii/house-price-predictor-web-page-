@@ -22,3 +22,20 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# 🐍 Python / Backend files to ignore
+backend/.venv/
+backend/venv/
+.venv/
+venv/
+**/__pycache__/
+*.pyc
+
+# ⚡ Node / Frontend files to ignore
+frontend/node_modules/
+node_modules/
+frontend/dist/
+
+# 🖥️ OS & Editor files
+.DS_Store
+.vscode/
+.idea/
