@@ -2,18 +2,17 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 export default function App() {
-  // 1. react-hook-form ko initialize kiya (No e.target.value jhanjhat!)
-  const { register,
-         handleSubmit,
-          formState: { errors } } = useForm();
+  const { register, handleSubmit, formState: { errors }, watch } = useForm();
   const [prediction, setPrediction] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // 2. Submit hone par yeh function chalega
+  // Watch the YearBuilt field dynamically to cross-validate with YearRemodAdd
+  const watchedYearBuilt = watch("YearBuilt");
+  const currentYear = new Date().getFullYear(); // Dynamic calculation for the current calendar year
+
   const onSubmit = async (data) => {
     setLoading(true);
     try {
-      // Backend (FastAPI) ko hit karenge
       const response = await fetch('https://house-price-predictor-web-page.onrender.com/predict', {
         method: 'POST',
         headers: {
@@ -46,16 +45,13 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col justify-between font-sans selection:bg-indigo-500 selection:text-white">
       
-      {/* 🚀 Meta/Header Component (Hidden from view but good for structure) */}
       <header className="sr-only">
         <h1>Ames House Price Predictor - Advanced ML Web App</h1>
-        <p>Predict real estate property prices using advanced machine learning regression techniques, trained on the Ames housing dataset.</p>
+        <p>Predict real estate property prices using advanced machine learning regression techniques.</p>
       </header>
 
-      {/* 🏠 Main Dashboard Container */}
       <main className="container mx-auto px-4 py-8 max-w-5xl flex-grow flex flex-col justify-center">
         
-        {/* Title Section */}
         <div className="text-center mb-8">
           <h2 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
             EstatePredict AI
@@ -65,54 +61,79 @@ export default function App() {
           </p>
         </div>
 
-        {/* Form and Result Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           
-          {/* 📋 THE INPUT FORM (Spans 2 columns on large screens) */}
           <form onSubmit={handleSubmit(onSubmit)} className="lg:col-span-2 bg-slate-800 border border-slate-700/50 p-6 md:p-8 rounded-2xl shadow-xl space-y-6">
             
             <h3 className="text-xl font-bold border-b border-slate-700 pb-3 text-indigo-400 flex items-center gap-2">
               📊 Property Specifications
             </h3>
 
-            {/* Grid for Inputs */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               
-              {/* GrLivArea */}
+              {/* Living Area (Sq Ft) */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Living Area (Sq Ft)</label>
                 <input 
                   type="number" 
                   placeholder="e.g. 1500"
-                  {...register("GrLivArea", { required: true, min: 100 })}
+                  {...register("GrLivArea", { required: "Living Area is required", min: { value: 100, message: "Minimum area must be 100 sq ft" } })}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
                 />
-                {errors.GrLivArea && <span className="text-xs text-red-400 mt-1 block">This field is required (Min 100)</span>}
+                {errors.GrLivArea && <span className="text-xs text-red-400 mt-1 block">{errors.GrLivArea.message}</span>}
               </div>
 
-              {/* TotalBsmtSF */}
+              {/* Basement Area (Sq Ft) with Living Area Cross-Validation */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Basement Area (Sq Ft)</label>
                 <input 
                   type="number" 
                   placeholder="e.g. 1000"
-                  {...register("TotalBsmtSF", { required: true, min: 0 })}
+                  {...register("TotalBsmtSF", { 
+                    required: "Basement Area is required", 
+                    min: { value: 0, message: "Area cannot be negative" }, 
+                    validate: (value, formValues) => {
+                      const livingArea = parseFloat(formValues.GrLivArea) || 0;
+                      const basementArea = parseFloat(value) || 0;
+                      if (basementArea > livingArea) {
+                        return "Basement cannot be larger than Living Area!";
+                      }
+                      return true;
+                    }
+                  })}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
                 />
+                {errors.TotalBsmtSF && <span className="text-xs text-red-400 mt-1 block">{errors.TotalBsmtSF.message}</span>}
               </div>
 
-              {/* GarageArea */}
+              {/* Garage Area (Sq Ft) with Garage Cars Cross-Validation */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Garage Area (Sq Ft)</label>
                 <input 
                   type="number" 
                   placeholder="e.g. 400"
-                  {...register("GarageArea", { required: true, min: 0 })}
+                  {...register("GarageArea", { 
+                    required: "Garage Area is required", 
+                    min: { value: 0, message: "Area cannot be negative" },
+                    validate: (value, formValues) => {
+                      const cars = parseInt(formValues.GarageCars) || 0;
+                      const area = parseFloat(value) || 0;
+                      if (cars === 0 && area > 0) {
+                        return "Area must be 0 if Garage Cars capacity is 0!";
+                      }
+                      const maxAllowedArea = cars * 400;
+                      if (area > maxAllowedArea && cars > 0) {
+                        return `Too spacious for ${cars} car(s)! Max limit is ${maxAllowedArea} sq ft.`;
+                      }
+                      return true;
+                    }
+                  })}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
                 />
+                {errors.GarageArea && <span className="text-xs text-red-400 mt-1 block">{errors.GarageArea.message}</span>}
               </div>
 
-              {/* OverallQual - DROPDOWN */}
+              {/* Overall Quality */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Overall Quality (1-10)</label>
                 <select 
@@ -125,35 +146,63 @@ export default function App() {
                 </select>
               </div>
 
-              {/* GarageCars & FullBath */}
+              {/* Garage Cars & Full Baths Multi-Grid Layout Selection */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Garage Cars</label>
                   <select {...register("GarageCars")} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500">
-                    {[0,1,2,3,4].map(num => <option key={num} value={num}>{num}</option>)}
+                    {[0, 1, 2, 3, 4].map(num => <option key={num} value={num}>{num}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Full Baths</label>
                   <select {...register("FullBath")} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500">
-                    {[0,1,2,3,4].map(num => <option key={num} value={num}>{num}</option>)}
+                    {[0, 1, 2, 3, 4].map(num => <option key={num} value={num}>{num}</option>)}
                   </select>
                 </div>
               </div>
 
-              {/* YearBuilt & YearRemodAdd */}
+              {/* Year Built & Renovated Year with Temporal Flow Checks */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Year Built</label>
-                  <input type="number" placeholder="2005" {...register("YearBuilt", { required: true })} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500" />
+                  <input 
+                    type="number" 
+                    placeholder="2005" 
+                    {...register("YearBuilt", { 
+                      required: "Year Built is required",
+                      min: { value: 1800, message: "Must be after 1800" },
+                      max: { value: currentYear, message: `Cannot exceed current year (${currentYear})` }
+                    })} 
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500" 
+                  />
+                  {errors.YearBuilt && <span className="text-xs text-red-400 mt-1 block">{errors.YearBuilt.message}</span>}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Renovated Year</label>
-                  <input type="number" placeholder="2010" {...register("YearRemodAdd", { required: true })} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500" />
+                  <input 
+                    type="number" 
+                    placeholder="2010" 
+                    {...register("YearRemodAdd", { 
+                      required: "Renovation Year is required",
+                      min: { value: 1800, message: "Must be after 1800" },
+                      max: { value: currentYear, message: `Cannot exceed current year (${currentYear})` },
+                      validate: (value) => {
+                        const builtYear = parseInt(watchedYearBuilt) || 0;
+                        const remodYear = parseInt(value) || 0;
+                        if (remodYear < builtYear) {
+                          return "Cannot be earlier than Year Built!";
+                        }
+                        return true;
+                      }
+                    })} 
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500" 
+                  />
+                  {errors.YearRemodAdd && <span className="text-xs text-red-400 mt-1 block">{errors.YearRemodAdd.message}</span>}
                 </div>
               </div>
 
-              {/* Neighborhood - DROPDOWN */}
+              {/* Neighborhood Location Dropdown */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Neighborhood Location</label>
                 <select {...register("Neighborhood")} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500">
@@ -166,7 +215,7 @@ export default function App() {
                 </select>
               </div>
 
-              {/* MSZoning & HouseStyle DROPDOWNS */}
+              {/* MSZoning & HouseStyle Dropdowns */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Zoning Type</label>
@@ -188,7 +237,6 @@ export default function App() {
 
             </div>
 
-            {/* Submit Button */}
             <button 
               type="submit" 
               disabled={loading}
@@ -199,7 +247,6 @@ export default function App() {
 
           </form>
 
-          {/* 🎯 THE DYNAMIC VISUAL RESULT PANEL */}
           <div className="bg-gradient-to-b from-slate-800 to-slate-900 border border-slate-700/60 p-6 rounded-2xl shadow-xl flex flex-col justify-between h-full min-h-[350px] lg:sticky lg:top-8">
             <div>
               <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-400 mb-4 flex items-center gap-2">
@@ -210,7 +257,6 @@ export default function App() {
               </p>
             </div>
 
-            {/* Conditional Result Window */}
             <div className="my-8 text-center flex-grow flex flex-col justify-center items-center">
               {prediction ? (
                 <div className="animate-fade-in">
@@ -228,7 +274,6 @@ export default function App() {
               )}
             </div>
 
-            {/* Quick Insights Checklist */}
             <div className="border-t border-slate-800 pt-4">
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Model Credentials</div>
               <ul className="text-[11px] text-slate-400 space-y-1.5">
@@ -243,7 +288,6 @@ export default function App() {
 
       </main>
 
-      {/* 📄 SEO Optimization & Accessibility Footer */}
       <footer className="border-t border-slate-800/80 py-4 text-center text-xs text-slate-600 bg-slate-950/50">
         <p>&copy; 2026 Ames Housing Predictive Analytics Platform. Developed for Advanced ML Stack Deployments.</p>
       </footer>
@@ -251,3 +295,4 @@ export default function App() {
     </div>
   );
 }
+                
